@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中華象棋神卦 App V1.0</title>
+    <style>
+        /* --- 1. App 整體風格設定 (UI/UX) --- */
+        :root {
+            --primary-red: #D32F2F;
+            --primary-gold: #FFC107;
+            --bg-color: #FFF8E1;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #app-container {
+            width: 100%;
+            max-width: 480px;
+            background-image: radial-gradient(circle at top right, #ffecd2 0%, #fcb69f 100%);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        header {
+            background-color: var(--primary-red);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* justify-content: center; 改為預設，避免長內容被卡住 */
+        }
+
+        .page {
+            display: none;
+            width: 100%;
+            animation: fadeIn 0.5s;
+        }
+        .page.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            margin-top: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+            width: 80%;
+            max-width: 300px;
+        }
+        .btn:active { transform: scale(0.95); }
+
+        input[type="text"] {
+            width: 80%;
+            padding: 12px;
+            border: 2px solid var(--primary-red);
+            border-radius: 10px;
+            font-size: 1rem;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        /* --- 棋子樣式 --- */
+        .chess-piece {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #f0dbb5;
+            border: 3px solid #8d6e63;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.2), 1px 1px 3px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-family: "KaiTi", "BiauKai", serif;
+            font-weight: bold;
+            position: relative;
+        }
+        .chess-piece::before {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px dashed #8d6e63;
+        }
+        .red-piece { color: #d32f2f; }
+        .black-piece { color: #212121; }
+
+        /* 結果頁的大棋子 */
+        .result-piece {
+            width: 70px;
+            height: 70px;
+            font-size: 2.2rem;
+            margin: 0 10px;
+        }
+        .result-piece::before { width: 58px; height: 58px; }
+
+        /* 選號盤與驗證盤 */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+            width: 100%;
+            justify-items: center;
+        }
+        .number-btn {
+            width: 45px;
+            height: 45px;
+            background-color: var(--primary-red);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.1rem;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        .number-btn.selected {
+            background-color: var(--primary-gold);
+            color: #333;
+            font-weight: bold;
+            transform: scale(1.1);
+            border-color: #333;
+            z-index: 2;
+        }
+        
+        /* 驗證模式下的樣式 */
+        .verify-piece {
+            opacity: 0.4; /* 未選中的變淡 */
+            transform: scale(0.9);
+        }
+        .verify-piece.is-chosen {
+            opacity: 1;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px var(--primary-gold);
+            z-index: 5;
+        }
+
+        /* 結果展示區 */
+        .result-box {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 10px;
+            width: 90%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            text-align: left;
+        }
+        .result-row {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .result-row:last-child { border-bottom: none; }
+        .result-text-group {
+            margin-left: 15px;
+            flex: 1;
+        }
+        .meaning-label { font-size: 0.85rem; color: #888; display: block; }
+        .meaning-main { font-size: 1.1rem; font-weight: bold; color: #333; }
+        .score-badge {
+            background: #eee;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: #666;
+            margin-left: auto;
+        }
+
+        /* 綜合分析區 */
+        .analysis-card {
+            background: linear-gradient(to right, #fffbd5, #b20a2c); /* 金到紅漸層 */
+            padding: 2px; /* 邊框效果 */
+            border-radius: 15px;
+            margin-top: 20px;
+            width: 90%;
+        }
+        .analysis-inner {
+            background: white;
+            padding: 15px;
+            border-radius: 13px;
+        }
+        .total-score {
+            font-size: 1.5rem;
+            color: var(--primary-red);
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            border-bottom: 2px dashed #eee;
+            padding-bottom: 10px;
+        }
+
+        .mode-card {
+            background: white;
+            width: 80%;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .mode-card:hover { border-color: var(--primary-gold); }
+
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <header>
+        ✨ 中華象棋神卦 V1.0 ✨
+    </header>
+
+    <div id="page-home" class="content page active">
+        <div style="margin-top:30px; font-size:4rem; text-align:center;">🐎</div>
+        <h2>誠心求問</h2>
+        <div style="text-align: left; background: white; padding: 20px; border-radius: 10px; width:80%;">
+            <h3 style="margin-top:0; color:var(--primary-red);">卜卦三原則</h3>
+            <ul style="padding-left: 20px; color: #555;">
+                <li><b>不誠不占：</b>心存玩笑勿試。</li>
+                <li><b>不義不占：</b>傷天害理勿問。</li>
+                <li><b>不疑不占：</b>已有定見勿卜。</li>
+            </ul>
+        </div>
+        <button class="btn" onclick="goToPage('page-question')">開始卜卦</button>
+    </div>
+
+    <div id="page-question" class="content page">
+        <h3>1. 請輸入心中疑惑</h3>
+        <input type="text" id="userQuestion" placeholder="例如：這個投資項目可行嗎？">
+        
+        <h3>2. 選擇卦象模式</h3>
+        <div class="mode-card" onclick="selectMode(1)">
+            <h3 style="margin:0; color:#d32f2f;">單占 (是非)</h3>
+            <p style="margin:5px 0 0; color:#666; font-size:0.9rem;">一翻兩瞪眼，速斷吉凶。</p>
+        </div>
+        <div class="mode-card" onclick="selectMode(3)">
+            <h3 style="margin:0; color:#d32f2f;">三才 (因果)</h3>
+            <p style="margin:5px 0 0; color:#666; font-size:0.9rem;">分析前因、過程與後果。</p>
+        </div>
+        <div class="mode-card" onclick="selectMode(5)">
+            <h3 style="margin:0; color:#d32f2f;">五行 (方位)</h3>
+            <p style="margin:5px 0 0; color:#666; font-size:0.9rem;">自身與周遭環境的全盤分析。</p>
+        </div>
+    </div>
+
+    <div id="page-selection" class="content page">
+        <h3 id="selection-prompt">請憑直覺選號</h3>
+        <p id="selection-progress" style="color:#d32f2f; font-weight:bold;">進度：0 / 3</p>
+        <div class="grid-container" id="selection-grid">
+            </div>
+    </div>
+
+    <div id="page-verify" class="content page">
+        <h3>✨ 驗證環節 ✨</h3>
+        <p style="font-size:0.9rem; text-align:center; margin:0 0 10px 0;">
+            請確認其餘未選中的棋子皆在其中。<br>童叟無欺，天機顯現。
+        </p>
+        <div class="grid-container" id="verify-grid">
+            </div>
+        <button class="btn" id="btn-reveal-result" onclick="showResult()" style="margin-top: 15px;">
+            確認無誤，解析卦象
+        </button>
+    </div>
+
+    <div id="page-result" class="content page">
+        <h3 style="margin-bottom:5px;">卦象解析</h3>
+        <div style="font-size:0.9rem; color:#666; margin-bottom:15px; background:#fff; padding:5px 15px; border-radius:10px;">
+            問：<span id="result-question-display"></span>
+        </div>
+        
+        <div class="analysis-card">
+            <div class="analysis-inner">
+                <div class="total-score" id="total-score-display">總分：0</div>
+                <div style="font-weight:bold; color:#333; margin-bottom:5px;">【大師綜整分析】</div>
+                <div id="ai-analysis-text" style="font-size:0.95rem; line-height:1.6; color:#555;">
+                    </div>
+            </div>
+        </div>
+
+        <h4 style="margin: 20px 0 10px 0; color:#888;">詳細卦義：</h4>
+        <div id="result-details" style="width:100%; display:flex; flex-direction:column; align-items:center;">
+            </div>
+
+        <button class="btn" onclick="resetApp()" style="margin-bottom:30px; background: #555;">重新卜卦</button>
+    </div>
+</div>
+
+<script>
+    /* --- 資料定義 (含分數) --- */
+    // 根據您的需求定義分數：
+    // 帥+10, 將-10, 仕+8, 士-8, 相+7, 象-7, 俥+6, 車-6, 傌+5, 馬-5, 炮+4, 包-4, 兵+1, 卒-1
+    const rawChessData = [
+        { name: "帥", color: "red", score: 10, meaning: "操之在己 / 好 / 是" },
+        { name: "將", color: "black", score: -10, meaning: "受制於人 / 不好 / 否" },
+        { name: "仕", color: "red", score: 8, meaning: "平步青雲" },
+        { name: "仕", color: "red", score: 8, meaning: "平步青雲" },
+        { name: "士", color: "black", score: -8, meaning: "江河日下" },
+        { name: "士", color: "black", score: -8, meaning: "江河日下" },
+        { name: "相", color: "red", score: 7, meaning: "吉人天相" },
+        { name: "相", color: "red", score: 7, meaning: "吉人天相" },
+        { name: "象", color: "black", score: -7, meaning: "盲人摸象" },
+        { name: "象", color: "black", score: -7, meaning: "盲人摸象" },
+        { name: "俥", color: "red", score: 6, meaning: "深謀遠慮" },
+        { name: "俥", color: "red", score: 6, meaning: "深謀遠慮" },
+        { name: "車", color: "black", score: -6, meaning: "橫衝直撞" },
+        { name: "車", color: "black", score: -6, meaning: "橫衝直撞" },
+        { name: "傌", color: "red", score: 5, meaning: "馬到成功" },
+        { name: "傌", color: "red", score: 5, meaning: "馬到成功" },
+        { name: "馬", color: "black", score: -5, meaning: "馬失前蹄" },
+        { name: "馬", color: "black", score: -5, meaning: "馬失前蹄" },
+        { name: "炮", color: "red", score: 4, meaning: "一炮而紅" },
+        { name: "炮", color: "red", score: 4, meaning: "一炮而紅" },
+        { name: "包", color: "black", score: -4, meaning: "時運不濟" }, 
+        { name: "包", color: "black", score: -4, meaning: "時運不濟」" },
+        { name: "兵", color: "red", score: 1, meaning: "勇往直前" },
+        { name: "兵", color: "red", score: 1, meaning: "勇往直前" },
+        { name: "兵", color: "red", score: 1, meaning: "勇往直前" },
+        { name: "兵", color: "red", score: 1, meaning: "勇往直前" },
+        { name: "兵", color: "red", score: 1, meaning: "勇往直前" },
+        { name: "卒", color: "black", score: -1, meaning: "勢單力薄" },
+        { name: "卒", color: "black", score: -1, meaning: "勢單力薄" },
+        { name: "卒", color: "black", score: -1, meaning: "勢單力薄" },
+        { name: "卒", color: "black", score: -1, meaning: "勢單力薄" },
+        { name: "卒", color: "black", score: -1, meaning: "勢單力薄" }
+    ];
+
+    /* --- 狀態變數 --- */
+    let currentMode = 3; 
+    let shuffledDeck = []; // 洗牌後的陣列
+    let selectedIndices = []; // 使用者選了第幾個位置 (0-31)
+    
+    const labels = {
+        1: ["結果"],
+        3: ["因 (原因)", "過程 (發展)", "果 (結果)"],
+        5: ["自己 (中心)", "配偶/妻財 (左)", "朋友/手足 (右)", "長輩/事業 (上)", "子孫/財庫 (下)"]
+    };
+
+    /* --- 功能函數 --- */
+
+    function goToPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+    }
+
+    function selectMode(mode) {
+        const q = document.getElementById('userQuestion').value.trim();
+        if(!q) { alert("請先輸入您的問題！"); return; }
+        
+        currentMode = mode;
+        selectedIndices = [];
+        
+        // 洗牌 (Fisher-Yates)
+        shuffledDeck = [...rawChessData];
+        for (let i = shuffledDeck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledDeck[i], shuffledDeck[j]] = [shuffledDeck[j], shuffledDeck[i]];
+        }
+
+        // 建立 32 個選號按鈕 (顯示 1-32)
+        const grid = document.getElementById('selection-grid');
+        grid.innerHTML = "";
+        for (let i = 0; i < 32; i++) {
+            const btn = document.createElement('div');
+            btn.className = 'number-btn';
+            btn.textContent = i + 1;
+            btn.dataset.index = i;
+            btn.onclick = function() { pickNumber(this, i); };
+            grid.appendChild(btn);
+        }
+
+        updateProgress();
+        goToPage('page-selection');
+    }
+
+    function pickNumber(btn, index) {
+        if(selectedIndices.length >= currentMode || btn.classList.contains('selected')) return;
+
+        btn.classList.add('selected');
+        selectedIndices.push(index);
+        updateProgress();
+
+        // 選滿了 -> 進入驗證環節
+        if (selectedIndices.length === currentMode) {
+            setTimeout(showVerifyPage, 600);
+        }
+    }
+
+    function updateProgress() {
+        document.getElementById('selection-progress').textContent = 
+            `進度：${selectedIndices.length} / ${currentMode}`;
+    }
+
+    // --- 驗證環節 (新功能) ---
+    function showVerifyPage() {
+        goToPage('page-verify');
+        const grid = document.getElementById('verify-grid');
+        grid.innerHTML = "";
+
+        // 顯示所有 32 顆棋子
+        shuffledDeck.forEach((piece, idx) => {
+            const isChosen = selectedIndices.includes(idx);
+            
+            // 建立棋子 DOM
+            const pieceDiv = document.createElement('div');
+            pieceDiv.className = `chess-piece ${piece.color === 'red' ? 'red-piece' : 'black-piece'} verify-piece ${isChosen ? 'is-chosen' : ''}`;
+            pieceDiv.innerText = piece.name; // 這裡直接翻開，展示「童叟無欺」
+            
+            grid.appendChild(pieceDiv);
+        });
+    }
+
+    // --- 產生結果 ---
+    function showResult() {
+        const questionText = document.getElementById('userQuestion').value;
+        document.getElementById('result-question-display').textContent = questionText;
+        
+        const detailsContainer = document.getElementById('result-details');
+        detailsContainer.innerHTML = "";
+        
+        let totalScore = 0;
+        let analysisParts = [];
+
+        // 依照使用者選擇的順序取出棋子
+        selectedIndices.forEach((deckIndex, i) => {
+            const piece = shuffledDeck[deckIndex];
+            totalScore += piece.score;
+            
+            const positionLabel = labels[currentMode][i] || `位置 ${i+1}`;
+            
+            // 建立詳細列表 DOM
+            const row = document.createElement('div');
+            row.className = 'result-box result-row';
+            row.innerHTML = `
+                <div class="chess-piece result-piece ${piece.color === 'red' ? 'red-piece' : 'black-piece'}">
+                    ${piece.name}
+                </div>
+                <div class="result-text-group">
+                    <span class="meaning-label">${positionLabel}</span>
+                    <span class="meaning-main">${piece.meaning}</span>
+                </div>
+                <div class="score-badge">${piece.score > 0 ? '+' : ''}${piece.score}分</div>
+            `;
+            detailsContainer.appendChild(row);
+
+            // 收集分析素材
+            analysisParts.push({ label: positionLabel, meaning: piece.meaning, pieceName: piece.name });
+        });
+
+        // 更新總分
+        const scoreDisplay = document.getElementById('total-score-display');
+        scoreDisplay.textContent = `總積分：${totalScore}`;
+        if(totalScore > 0) scoreDisplay.style.color = "#D32F2F"; // 紅
+        else if(totalScore < 0) scoreDisplay.style.color = "#333"; // 黑
+        else scoreDisplay.style.color = "#888";
+
+        // 生成並顯示智慧分析
+        const analysisText = generateAnalysisText(questionText, totalScore, analysisParts);
+        document.getElementById('ai-analysis-text').innerHTML = analysisText;
+
+        goToPage('page-result');
+    }
+
+    // --- 智慧綜整分析 (模擬 AI) ---
+    function generateAnalysisText(question, score, parts) {
+        let luckLevel = "";
+        let advice = "";
+
+        // 1. 判斷吉凶等級
+        if (score >= 15) {
+            luckLevel = "【大吉】氣勢如虹，心想事成。";
+            advice = "目前運勢極佳，建議把握機會積極行動，切勿猶豫。";
+        } else if (score >= 5) {
+            luckLevel = "【吉】運勢平穩，穩步向前。";
+            advice = "雖然不是一飛沖天，但只要按部就班，結果多為正向。";
+        } else if (score >= -5) {
+            luckLevel = "【平】吉凶參半，變數仍多。";
+            advice = "局勢尚未明朗或有好有壞，建議保守行事，多觀察再行動。";
+        } else {
+            luckLevel = "【凶】阻礙重重，不宜躁進。";
+            advice = "目前的時機點較差，容易遇到阻礙或小人，建議暫緩計畫，修身養性。";
+        }
+
+        // 2. 組合句子
+        let content = `針對您所問的「<b>${question}</b>」，綜合評分為 <b>${score}分</b>，屬於${luckLevel}<br><br>`;
+        
+        content += "從卦象結構來看：<br>";
+        parts.forEach(p => {
+            content += `● <b>${p.label}</b>出現了「${p.pieceName}」，暗示${p.meaning}。<br>`;
+        });
+
+        content += `<br><b>💡 建議：</b>${advice}`;
+
+        return content;
+    }
+
+    function resetApp() {
+        document.getElementById('userQuestion').value = "";
+        selectedIndices = [];
+        goToPage('page-home');
+    }
+
+</script>
+
+</body>
+</html>
